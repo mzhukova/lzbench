@@ -1,0 +1,299 @@
+/*******************************************************************************
+ * Copyright (C) 2022 Intel Corporation
+ *
+ * SPDX-License-Identifier: MIT
+ ******************************************************************************/
+
+#include <algorithm>
+
+#if defined(__linux__)
+
+#include <cinttypes>
+
+#include "hw_descriptors_api.h"
+#include "hw_device.hpp"
+#include "util/topology.hpp"
+#include "util/util.hpp"
+
+#ifdef DYNAMIC_LOADING_LIBACCEL_CONFIG
+#include "hw_configuration_driver.h"
+#else //DYNAMIC_LOADING_LIBACCEL_CONFIG=OFF
+#include "hw_definitions.h"
+#include "hw_devices.h"
+#include "libaccel_config.h"
+#endif //DYNAMIC_LOADING_LIBACCEL_CONFIG
+
+constexpr uint8_t  accelerator_name[]      = "iax";                         /**< Accelerator name */
+constexpr uint32_t accelerator_name_length = sizeof(accelerator_name) - 2U; /**< Last symbol index */
+
+static inline bool own_search_device_name(const uint8_t* src_ptr, const uint32_t name,
+                                          const uint32_t name_size) noexcept {
+    const uint8_t null_terminator = '\0';
+
+    for (size_t symbol_idx = 0U; null_terminator != src_ptr[symbol_idx + name_size]; symbol_idx++) {
+        const auto* candidate_ptr = reinterpret_cast<const uint32_t*>(src_ptr + symbol_idx);
+
+        // Convert the first 3 bytes to lower case and make the 4th 0xff
+        if (name == (*candidate_ptr | CHAR_MSK)) { return true; }
+    }
+
+    return false;
+}
+
+namespace qpl::ml::dispatcher {
+
+/**
+ * @brief Routine to restore device properties.
+*/
+void hw_device::fill_hw_context(hw_accelerator_context* const hw_context_ptr) const noexcept {
+    // GENCAP-related
+    hw_context_ptr->device_properties.indexing_support_enabled      = hw_device::get_indexing_support_enabled();
+    hw_context_ptr->device_properties.decompression_support_enabled = hw_device::get_decompression_support_enabled();
+    hw_context_ptr->device_properties.max_transfer_size             = hw_device::get_max_transfer_size();
+    hw_context_ptr->device_properties.cache_flush_available         = hw_device::get_cache_flush_available();
+    hw_context_ptr->device_properties.cache_write_available         = hw_device::get_cache_write_available();
+    hw_context_ptr->device_properties.overlapping_available         = hw_device::get_overlapping_available();
+    hw_context_ptr->device_properties.block_on_fault_enabled        = hw_device::get_block_on_fault_available();
+
+    // IAACAP-related
+    hw_context_ptr->device_properties.gen_2_min_capabilities_available = hw_device::get_gen_2_min_capabilities();
+    hw_context_ptr->device_properties.header_gen_supported             = hw_device::get_header_gen_support();
+    hw_context_ptr->device_properties.dict_compression_supported       = hw_device::get_dict_compress_support();
+    hw_context_ptr->device_properties.load_partial_aecs_supported      = hw_device::get_load_partial_aecs_support();
+    hw_context_ptr->device_properties.force_array_output_mod_available = hw_device::get_force_array_output_support();
+}
+
+auto hw_device::enqueue_descriptor(void* desc_ptr) const noexcept -> hw_accelerator_status {
+    static thread_local std::uint32_t wq_idx = 0;
+
+    const uint32_t   operation             = hw_iaa_descriptor_get_operation((hw_descriptor*)desc_ptr);
+    util::bitmask128 bit_index_is_valid_wq = util::bitmask128(queue_count_);
+
+    // Must select only workqueues w/ operation enabled
+    queue_selection_.reduce_by_operation(operation, bit_index_is_valid_wq);
+    if (bit_index_is_valid_wq == 0U) { return HW_ACCELERATOR_NOT_SUPPORTED_BY_WQ; }
+
+    // For small low-latency cases WQ with small transfer size may be preferable
+    // TODO: order WQs by priority and engines capacity, check transfer sizes and other possible features
+    for (uint64_t try_count = 0U; try_count < queue_count_; ++try_count) {
+        if (bit_index_is_valid_wq[wq_idx]) {
+            hw_iaa_descriptor_set_block_on_fault((hw_descriptor*)desc_ptr,
+                                                 working_queues_[wq_idx].get_block_on_fault());
+            const qpl_status enqueue_status = working_queues_[wq_idx].enqueue_descriptor(desc_ptr);
+            if (QPL_STS_OK == enqueue_status) { return HW_ACCELERATOR_STATUS_OK; }
+        }
+        wq_idx = (wq_idx + 1) % queue_count_;
+    }
+    return HW_ACCELERATOR_WQ_IS_BUSY;
+}
+
+auto hw_device::get_indexing_support_enabled() const noexcept -> uint32_t {
+    return GC_IDX_SUPPORT(gen_cap_register_);
+}
+
+auto hw_device::get_decompression_support_enabled() const noexcept -> bool {
+    return GC_DECOMP_SUPPORT(gen_cap_register_);
+}
+
+auto hw_device::get_max_transfer_size() const noexcept -> uint32_t {
+    return GC_MAX_TRANSFER_SIZE(gen_cap_register_);
+}
+
+auto hw_device::get_cache_flush_available() const noexcept -> bool {
+    return GC_CACHE_FLUSH(gen_cap_register_);
+}
+
+auto hw_device::get_cache_write_available() const noexcept -> bool {
+    return GC_CACHE_WRITE(gen_cap_register_);
+}
+
+auto hw_device::get_overlapping_available() const noexcept -> bool {
+    return GC_OVERLAPPING(gen_cap_register_);
+}
+
+auto hw_device::get_block_on_fault_available() const noexcept -> bool {
+    return GC_BLOCK_ON_FAULT(gen_cap_register_);
+}
+
+auto hw_device::get_gen_2_min_capabilities() const noexcept -> bool {
+    return IC_GEN_2_MIN_CAP(iaa_cap_register_);
+}
+
+auto hw_device::get_header_gen_support() const noexcept -> bool {
+    return IC_HEADER_GEN(iaa_cap_register_);
+}
+
+auto hw_device::get_dict_compress_support() const noexcept -> bool {
+    return IC_DICT_COMP(iaa_cap_register_);
+}
+
+auto hw_device::get_force_array_output_support() const noexcept -> bool {
+    return IC_FORCE_ARRAY(iaa_cap_register_);
+}
+
+auto hw_device::get_load_partial_aecs_support() const noexcept -> bool {
+    return IC_LOAD_PARTIAL_AECS(iaa_cap_register_);
+}
+
+/**
+ * @brief Function to query device and check its properties.
+ * Returns HW_ACCELERATOR_STATUS_OK upon success and HW_ACCELERATOR_WORK_QUEUES_NOT_AVAILABLE for invalid device.
+ *
+ * @note Special cases are Intel® In-Memory Analytics Accelerator (Intel® IAA) generation 2.0,
+ * where IAACAP is expected.
+ * Error code HW_ACCELERATOR_LIBACCEL_NOT_FOUND is returned if libaccel doesn't have API for reading IAACAP
+ * and error code HW_ACCELERATOR_SUPPORT_ERR is returned if IAACAP couldn't be read.
+*/
+auto hw_device::initialize_new_device(descriptor_t* device_descriptor_ptr) noexcept -> hw_accelerator_status {
+    // Device initialization stage
+    auto*       device_ptr    = reinterpret_cast<accfg_device*>(device_descriptor_ptr);
+    const auto* name_ptr      = reinterpret_cast<const uint8_t*>(accfg_device_get_devname(device_ptr));
+    const bool  is_iaa_device = own_search_device_name(name_ptr, IAA_DEVICE, accelerator_name_length);
+
+    version_major_ = accfg_device_get_version(device_ptr) >> 8U;
+    version_minor_ = accfg_device_get_version(device_ptr) & 0xFF;
+
+    DIAG("%5s: ", name_ptr);
+    if (!is_iaa_device) {
+        DIAGA("UNSUPPORTED %5s\n", name_ptr);
+        return HW_ACCELERATOR_WORK_QUEUES_NOT_AVAILABLE;
+    }
+    if (ACCFG_DEVICE_ENABLED != accfg_device_get_state(device_ptr)) {
+        DIAGA("DISABLED %5s\n", name_ptr);
+        return HW_ACCELERATOR_WORK_QUEUES_NOT_AVAILABLE;
+    }
+    DIAGA("\n");
+
+    gen_cap_register_ = accfg_device_get_gen_cap(device_ptr);
+    numa_node_id_     = accfg_device_get_numa_node(device_ptr);
+    socket_id_        = qpl::ml::util::get_socket_id(numa_node_id_);
+
+    DIAG("%5s: version: %d.%d\n", name_ptr, version_major_, version_minor_);
+    DIAG("%5s: numa: %" PRIu64 "\n", name_ptr, numa_node_id_);
+    DIAG("%5s: socket: %" PRIu64 "\n", name_ptr, socket_id_);
+    DIAG("%5s: GENCAP: %" PRIu64 "\n", name_ptr, gen_cap_register_);
+    DIAG("%5s: GENCAP: block on fault support:              %d\n", name_ptr, get_block_on_fault_available());
+    DIAG("%5s: GENCAP: overlapping copy support:            %d\n", name_ptr, get_overlapping_available());
+    DIAG("%5s: GENCAP: cache control support (memory):      %d\n", name_ptr, get_cache_write_available());
+    DIAG("%5s: GENCAP: cache control support (cache flush): %d\n", name_ptr, get_cache_flush_available());
+    DIAG("%5s: GENCAP: maximum supported transfer size:     %" PRIu32 "\n", name_ptr, get_max_transfer_size());
+    DIAG("%5s: GENCAP: decompression support:               %d\n", name_ptr, get_decompression_support_enabled());
+    DIAG("%5s: GENCAP: indexing support:                    %d\n", name_ptr, get_indexing_support_enabled());
+
+    // Retrieve IAACAP if available
+    uint64_t      iaa_cap            = 0U;
+    const int32_t get_iaa_cap_status = accfg_device_get_iaa_cap(device_ptr, &iaa_cap);
+    if (get_iaa_cap_status) {
+        // @todo this is a workaround to optionally load accfg_device_get_iaa_cap
+        DIAGA("%5s: IAACAP: Failed to read IAACAP, HW gen 2 features will not be used\n", name_ptr);
+
+        if (version_major_ >= 2U) {
+            // If function for reading IAACAP couldn't be loaded (accfg_device_get_iaa_cap returns positive 1 error code),
+            // then exit with HW_ACCELERATOR_LIBACCEL_NOT_FOUND.
+            // This case means that the libaccel used doesn't have required API.
+            if (get_iaa_cap_status == 1) {
+                return HW_ACCELERATOR_LIBACCEL_NOT_FOUND;
+            }
+            // If IAACAP couldn't be read and libaccel returns negative error code, then exit with HW_ACCELERATOR_SUPPORT_ERR.
+            // This case might mean that the kernel version is too old (IAACAP register was not exposed yet).
+            else {
+                return HW_ACCELERATOR_SUPPORT_ERR;
+            }
+        }
+    }
+
+    iaa_cap_register_ = iaa_cap;
+    DIAG("%5s: IAACAP: %" PRIu64 "\n", name_ptr, iaa_cap_register_);
+
+    DIAG("%5s: IAACAP: generation 2 minimum capabilities:   %d\n", name_ptr, get_gen_2_min_capabilities());
+    DIAG("%5s: IAACAP: load partial AECS support:           %d\n", name_ptr, get_load_partial_aecs_support());
+    DIAG("%5s: IAACAP: header generation support:           %d\n", name_ptr, get_header_gen_support());
+    DIAG("%5s: IAACAP: dictionary compression support:      %d\n", name_ptr, get_dict_compress_support());
+
+    // Working queues initialization stage
+    auto* wq_ptr = accfg_wq_get_first(device_ptr);
+    auto  wq_it  = working_queues_.begin();
+
+    DIAG("%5s: getting device WQs\n", name_ptr);
+    while (nullptr != wq_ptr) {
+        if (HW_ACCELERATOR_STATUS_OK == wq_it->initialize_new_queue(wq_ptr)) {
+            wq_it++;
+
+            std::push_heap(working_queues_.begin(), wq_it,
+                           [](const hw_queue& a, const hw_queue& b) -> bool { return a.priority() < b.priority(); });
+        }
+
+        wq_ptr = accfg_wq_get_next(wq_ptr);
+    }
+
+    // Check number of working queues
+    queue_count_ = std::distance(working_queues_.begin(), wq_it);
+
+    if (queue_count_ > 1) {
+        auto begin = working_queues_.begin();
+        auto end   = begin + queue_count_;
+
+        std::sort_heap(begin, end,
+                       [](const hw_queue& a, const hw_queue& b) -> bool { return a.priority() < b.priority(); });
+    }
+
+    if (queue_count_ == 0) { return HW_ACCELERATOR_WORK_QUEUES_NOT_AVAILABLE; }
+
+    // Initialize queue_selection_ object
+    queue_selection_ = queue_selector(working_queues_, queue_count_);
+
+    return HW_ACCELERATOR_STATUS_OK;
+}
+
+auto hw_device::size() const noexcept -> size_t {
+    return queue_count_;
+}
+
+auto hw_device::numa_id() const noexcept -> uint64_t {
+    return numa_node_id_;
+}
+
+auto hw_device::socket_id() const noexcept -> uint64_t {
+    return socket_id_;
+}
+
+auto hw_device::begin() const noexcept -> queues_container_t::const_iterator {
+    return working_queues_.cbegin();
+}
+
+auto hw_device::end() const noexcept -> queues_container_t::const_iterator {
+    return working_queues_.cbegin() + queue_count_;
+}
+
+/**
+ * @brief Function to check if the device is matching the user-specified NUMA policy.
+ * User specified value could be one of the following:
+ * - QPL_DEVICE_NUMA_ID_ANY
+ * - QPL_DEVICE_NUMA_ID_CURRENT
+ * - QPL_DEVICE_NUMA_ID_SOCKET
+ * or NUMA node id
+ */
+auto hw_device::is_matching_user_numa_policy(int32_t user_specified_numa_id) const noexcept -> bool {
+    // If the device is not NUMA-aware or user specifies any NUMA id, then we can't check NUMA policy
+    // and, in this case, we will be using the device for execution.
+    if (numa_node_id_ == (uint64_t)(-1) || user_specified_numa_id == QPL_DEVICE_NUMA_ID_ANY) { return true; }
+
+    if (user_specified_numa_id >= 0) { // user specified NUMA node id
+        return (numa_node_id_ == (uint64_t)(user_specified_numa_id));
+    }
+
+    if (user_specified_numa_id == QPL_DEVICE_NUMA_ID_CURRENT) {
+        return (numa_node_id_ == (uint64_t)qpl::ml::util::get_numa_id());
+    }
+
+    if (user_specified_numa_id == QPL_DEVICE_NUMA_ID_SOCKET) {
+        return (numa_node_id_ == (uint64_t)qpl::ml::util::get_numa_id() ||
+                socket_id_ == qpl::ml::util::get_socket_id());
+    }
+
+    return false;
+}
+
+} // namespace qpl::ml::dispatcher
+
+#endif //__linux__
