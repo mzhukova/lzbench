@@ -594,4 +594,16 @@ extern "C"
     #define lzbench_tamp_decompress NULL
 #endif
 
+#ifndef BENCH_REMOVE_QPL
+		char* lzbench_qpl_init(size_t insize, size_t, size_t);
+		void lzbench_qpl_deinit(char* workmem);
+		int64_t lzbench_qpl_compress(char *in, size_t insize, char *out, size_t outsize, codec_options_t *codec_options);
+		int64_t lzbench_qpl_decompress(char *in, size_t insize, char *out, size_t outsize, codec_options_t *codec_options);
+#else
+		#define lzbench_qpl_init NULL
+		#define lzbench_qpl_deinit NULL
+		#define lzbench_qpl_compress NULL
+		#define lzbench_qpl_decompress NULL
+#endif
+
 #endif // LZBENCH_COMPRESSORS_H
