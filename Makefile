@@ -564,6 +564,18 @@ ifneq "$(DONT_BUILD_BSC)" "1"
 endif
 endif # ifneq "$(LIBCUDART)"
 
+HAS_CMAKE_NASM = $(shell command -v cmake >/dev/null 2>&1 && command -v nasm >/dev/null 2>&1 && echo 1 || echo 0)
+ifeq "$(HAS_CMAKE_NASM)" "0"
+    $(info CMake and NASM assembler are required for building QPL but one or both are not installed, QPL codec will be disabled.)
+    DONT_BUILD_QPL = 1
+endif
+
+ifeq "$(DONT_BUILD_QPL)" "1"
+    DEFINES    += -DBENCH_REMOVE_QPL
+else
+    DEFINES    += -Imisc/libqpl/qpl/include
+    MISC_FILES += misc/libqpl/qpl-wrappers/qpl_helper.o misc/libqpl/qpl/release/lib64/libqpl.a
+endif
 
 
 MKDIR = mkdir -p
@@ -684,6 +696,17 @@ nakamichi/Nakamichi_Okamigan.o: nakamichi/Nakamichi_Okamigan.c
 	@$(MKDIR) $(dir $@)
 	$(CC) $(CFLAGS) -mavx $< -c -o $@
 
+misc/libqpl/qpl/release/lib64/libqpl.a:
+	$(MKDIR) misc/libqpl/qpl/build && cmake -S misc/libqpl/qpl -B misc/libqpl/qpl/build -DCMAKE_BUILD_TYPE=Release -DQPL_BUILD_EXAMPLES=OFF -DQPL_BUILD_TESTS=OFF -DCMAKE_INSTALL_PREFIX=misc/libqpl/qpl/release && make -C misc/libqpl/qpl/build install
+
+misc/libqpl/qpl-wrappers/qpl_helper.o: misc/libqpl/qpl-wrappers/qpl_helper.cpp
+	@$(MKDIR) $(dir $@)
+	$(CXX) $(CFLAGS) -c $< -o $@
+
 clean:
 	rm -rf lzbench lzbench.exe
 	find . -type f -name "*.o" -exec rm -f {} +
+ifneq "$(DONT_BUILD_QPL)" "1"
+	rm -rf misc/libqpl/qpl/release
+	rm -rf misc/libqpl/qpl/build
+endif

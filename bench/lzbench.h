@@ -244,6 +244,10 @@ static const compressor_desc_t comp_desc[] =
     { "zstd24LDM",  "zstd 1.5.7 --long -d24", 16,  22,   24,       0, lzbench_zstd_LDM_compress,   lzbench_zstd_decompress,       lzbench_zstd_LDM_init,   lzbench_zstd_deinit },
     { "zstdLDM",    "zstd 1.5.7 --long",       1,  22,    0,       0, lzbench_zstd_LDM_compress,   lzbench_zstd_decompress,       lzbench_zstd_LDM_init,   lzbench_zstd_deinit },
     { "zstd_fast",  "zstd 1.5.7 --fast",      -5,  -1,    0,       0, lzbench_zstd_compress,       lzbench_zstd_decompress,       lzbench_zstd_init,       lzbench_zstd_deinit },
+    { "qpl",        "qpl 1.7",                 1,   3,    1,       0, lzbench_qpl_compress,        lzbench_qpl_decompress,        lzbench_qpl_init,        lzbench_qpl_deinit },
+    { "qpl_by2",    "qpl 1.7 2 async jobs",    1,   3,    2,       0, lzbench_qpl_compress,        lzbench_qpl_decompress,        lzbench_qpl_init,        lzbench_qpl_deinit },
+    { "qpl_by4",    "qpl 1.7 4 async jobs",    1,   3,    4,       0, lzbench_qpl_compress,        lzbench_qpl_decompress,        lzbench_qpl_init,        lzbench_qpl_deinit },
+    { "qpl_by8",    "qpl 1.7 8 async jobs",    1,   3,    8,       0, lzbench_qpl_compress,        lzbench_qpl_decompress,        lzbench_qpl_init,        lzbench_qpl_deinit },
 };
 
 const long int LZBENCH_COMPRESSOR_COUNT = sizeof(comp_desc)/sizeof(comp_desc[0]);
@@ -271,7 +275,8 @@ static const alias_desc_t alias_desc[] =
     { "SYMMETRIC","Includes compressors with similar compression and decompression speeds.",
                   "memcpy/bsc/bzip2/bzip3/ppmd8" },
     { "MISC",     "Covers miscellaneous compressors.",
-                  "memcpy/crush/glza/lzjb/nakamichi/tamp/tornado/zling" },
+                  "memcpy/crush/glza/lzjb/nakamichi/tamp/tornado/zling" \
+                  "qpl,1,3/qpl_by2,1/qpl_by4,1/qpl_by8,1" },
     { "BUGGY",    "Lists potentially unstable codecs that may cause segmentation faults.",
                   "memcpy/csc/density/gipfeli/lzmat/lzrw/pithy/wflz/yalz77/yappy" }, // these can SEGFAULT
     { "UCL",      "Refers to all UCL compressor variants.",
