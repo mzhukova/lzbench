@@ -133,4 +133,3 @@ if (QPL_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif ()
 
-add_subdirectory(tools)
