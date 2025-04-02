@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright (C) 2025 Intel Corporation
+ *
+ * SPDX-License-Identifier: MIT
+ ******************************************************************************/
+
 #include <chrono>
 #include <cstdlib>
 #include <cstring>
