@@ -12,14 +12,9 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <unistd.h>
-#include <uuid/uuid.h>
 
 #ifdef __cplusplus
 extern "C" {
-#endif
-
-#ifndef UUID_STR_LEN
-#define UUID_STR_LEN 37
 #endif
 
 #define MAX_DEV_LEN         64
@@ -27,7 +22,6 @@ extern "C" {
 #define MAX_PARAM_LEN       4096
 #define TRAFFIC_CLASS_LIMIT 8
 #define WQ_PRIORITY_LIMIT   15
-#define UUID_ZERO           "00000000-0000-0000-0000-000000000000"
 
 enum accfg_device_version {
     ACCFG_DEVICE_VERSION_1 = 0x100,
