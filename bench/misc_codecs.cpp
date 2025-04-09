@@ -415,6 +415,17 @@ int64_t lzbench_qpl_compress(char* in, size_t insize, char* out, size_t outsize,
     return outsize;
 }
 
+int64_t lzbench_qpl_fixed_compress(char* in, size_t insize, char* out, size_t outsize, codec_options_t *codec_options) {
+    QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
+    if (!ctx) return 0;
+
+    qpl_compression_levels qpl_level = (codec_options->level == 3) ? qpl_high_level : qpl_default_level;
+
+    compress(ctx, in, insize, out, &outsize, qpl_level, false);
+
+    return outsize;
+}
+
 int64_t lzbench_qpl_decompress(char* inbuf, size_t insize, char* outbuf, size_t outsize, codec_options_t *codec_options) {
 
     QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
@@ -425,5 +436,14 @@ int64_t lzbench_qpl_decompress(char* inbuf, size_t insize, char* outbuf, size_t 
     return outsize;
 }
 
+int64_t lzbench_qpl_fixed_decompress(char* inbuf, size_t insize, char* outbuf, size_t outsize, codec_options_t *codec_options) {
+
+    QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
+    if (!ctx) return 0;
+
+    decompress(ctx, inbuf, insize, outbuf, &outsize, false);
+
+    return outsize;
+}
 
 #endif // DBENCH_REMOVE_QPL

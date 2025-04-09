@@ -599,11 +599,15 @@ extern "C"
 		void lzbench_qpl_deinit(char* workmem);
 		int64_t lzbench_qpl_compress(char *in, size_t insize, char *out, size_t outsize, codec_options_t *codec_options);
 		int64_t lzbench_qpl_decompress(char *in, size_t insize, char *out, size_t outsize, codec_options_t *codec_options);
+		int64_t lzbench_qpl_fixed_compress(char *in, size_t insize, char *out, size_t outsize, codec_options_t *codec_options);
+		int64_t lzbench_qpl_fixed_decompress(char *in, size_t insize, char *out, size_t outsize, codec_options_t *codec_options);
 #else
 		#define lzbench_qpl_init NULL
 		#define lzbench_qpl_deinit NULL
 		#define lzbench_qpl_compress NULL
 		#define lzbench_qpl_decompress NULL
+		#define lzbench_qpl_fixed_compress NULL
+		#define lzbench_qpl_fixed_decompress NULL
 #endif
 
 #endif // LZBENCH_COMPRESSORS_H
