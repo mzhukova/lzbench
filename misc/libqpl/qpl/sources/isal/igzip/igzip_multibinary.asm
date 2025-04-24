@@ -1,0 +1,111 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; Copyright (C) 2022 Intel Corporation
+;
+; SPDX-License-Identifier: MIT
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+default rel
+[bits 64]
+
+%include "reg_sizes.asm"
+
+extern qpl_isal_deflate_body_base
+extern qpl_isal_deflate_body_01
+extern qpl_isal_deflate_body_02
+extern qpl_isal_deflate_body_04
+extern qpl_isal_deflate_finish_base
+extern qpl_isal_deflate_finish_01
+
+extern qpl_isal_deflate_icf_body_hash_hist_base
+extern qpl_isal_deflate_icf_body_hash_hist_01
+extern qpl_isal_deflate_icf_body_hash_hist_02
+extern qpl_isal_deflate_icf_body_hash_hist_04
+extern qpl_isal_deflate_icf_finish_hash_hist_base
+extern qpl_isal_deflate_icf_finish_hash_hist_01
+
+extern qpl_isal_deflate_icf_finish_hash_map_base
+
+extern qpl_isal_update_histogram_base
+extern qpl_isal_update_histogram_01
+extern qpl_isal_update_histogram_04
+
+extern qpl_gen_icf_map_h1_base
+extern qpl_gen_icf_map_lh1_04
+
+extern qpl_encode_deflate_icf_base
+extern qpl_encode_deflate_icf_04
+
+extern qpl_set_long_icf_fg_base
+extern qpl_set_long_icf_fg_04
+
+%ifdef HAVE_AS_KNOWS_AVX512
+extern qpl_encode_deflate_icf_06
+extern qpl_set_long_icf_fg_06
+extern qpl_gen_icf_map_lh1_06
+%endif
+
+extern qpl_adler32_base
+extern qpl_adler32_avx2_4
+extern qpl_adler32_sse
+
+extern qpl_isal_deflate_hash_base
+extern qpl_isal_deflate_hash_crc_01
+
+extern qpl_isal_deflate_hash_mad_base
+
+extern qpl_icf_body_hash1_fillgreedy_lazy
+extern qpl_icf_body_lazyhash1_fillgreedy_greedy
+
+section .text
+
+%include "multibinary.asm"
+
+mbin_interface		qpl_isal_deflate_body
+mbin_dispatch_init5	qpl_isal_deflate_body, qpl_isal_deflate_body_base, qpl_isal_deflate_body_01, qpl_isal_deflate_body_02, qpl_isal_deflate_body_04
+mbin_interface		qpl_isal_deflate_finish
+mbin_dispatch_init5	qpl_isal_deflate_finish, qpl_isal_deflate_finish_base, qpl_isal_deflate_finish_01, qpl_isal_deflate_finish_01, qpl_isal_deflate_finish_01
+
+mbin_interface		qpl_isal_deflate_icf_body_lvl1
+mbin_dispatch_init5	qpl_isal_deflate_icf_body_lvl1, qpl_isal_deflate_icf_body_hash_hist_base, qpl_isal_deflate_icf_body_hash_hist_01, qpl_isal_deflate_icf_body_hash_hist_02, qpl_isal_deflate_icf_body_hash_hist_04
+
+mbin_interface		qpl_isal_deflate_icf_body_lvl2
+mbin_dispatch_init5	qpl_isal_deflate_icf_body_lvl2, qpl_isal_deflate_icf_body_hash_hist_base, qpl_isal_deflate_icf_body_hash_hist_01, qpl_isal_deflate_icf_body_hash_hist_02, qpl_isal_deflate_icf_body_hash_hist_04
+
+mbin_interface		qpl_isal_deflate_icf_body_lvl3
+mbin_dispatch_init5	qpl_isal_deflate_icf_body_lvl3, qpl_icf_body_hash1_fillgreedy_lazy, qpl_icf_body_hash1_fillgreedy_lazy, qpl_icf_body_hash1_fillgreedy_lazy, qpl_icf_body_lazyhash1_fillgreedy_greedy
+
+mbin_interface		qpl_isal_deflate_icf_finish_lvl1
+mbin_dispatch_init5	qpl_isal_deflate_icf_finish_lvl1, qpl_isal_deflate_icf_finish_hash_hist_base, qpl_isal_deflate_icf_finish_hash_hist_01, qpl_isal_deflate_icf_finish_hash_hist_01, qpl_isal_deflate_icf_finish_hash_hist_01
+
+mbin_interface		qpl_isal_deflate_icf_finish_lvl2
+mbin_dispatch_init5	qpl_isal_deflate_icf_finish_lvl2, qpl_isal_deflate_icf_finish_hash_hist_base, qpl_isal_deflate_icf_finish_hash_hist_01, qpl_isal_deflate_icf_finish_hash_hist_01, qpl_isal_deflate_icf_finish_hash_hist_01
+
+mbin_interface		qpl_isal_deflate_icf_finish_lvl3
+mbin_dispatch_init5	qpl_isal_deflate_icf_finish_lvl3, qpl_isal_deflate_icf_finish_hash_map_base, qpl_isal_deflate_icf_finish_hash_map_base, qpl_isal_deflate_icf_finish_hash_map_base, qpl_isal_deflate_icf_finish_hash_map_base
+
+mbin_interface		qpl_isal_update_histogram
+mbin_dispatch_init5	qpl_isal_update_histogram, qpl_isal_update_histogram_base, qpl_isal_update_histogram_01, qpl_isal_update_histogram_01, qpl_isal_update_histogram_04
+
+mbin_interface		qpl_encode_deflate_icf
+mbin_dispatch_init6	qpl_encode_deflate_icf, qpl_encode_deflate_icf_base, qpl_encode_deflate_icf_base, qpl_encode_deflate_icf_base, qpl_encode_deflate_icf_04, qpl_encode_deflate_icf_06
+
+mbin_interface		qpl_set_long_icf_fg
+mbin_dispatch_init6	qpl_set_long_icf_fg, qpl_set_long_icf_fg_base, qpl_set_long_icf_fg_base, qpl_set_long_icf_fg_base, qpl_set_long_icf_fg_04, qpl_set_long_icf_fg_06
+
+mbin_interface		qpl_gen_icf_map_lh1
+mbin_dispatch_init6	qpl_gen_icf_map_lh1, qpl_gen_icf_map_h1_base, qpl_gen_icf_map_h1_base, qpl_gen_icf_map_h1_base, qpl_gen_icf_map_lh1_04, qpl_gen_icf_map_lh1_06
+
+mbin_interface		qpl_isal_adler32
+mbin_dispatch_init5	qpl_isal_adler32, qpl_adler32_base, qpl_adler32_sse, qpl_adler32_sse, qpl_adler32_avx2_4
+
+mbin_interface		qpl_isal_deflate_hash_lvl0
+mbin_dispatch_init5	qpl_isal_deflate_hash_lvl0, qpl_isal_deflate_hash_base, qpl_isal_deflate_hash_crc_01, qpl_isal_deflate_hash_crc_01, qpl_isal_deflate_hash_crc_01
+
+mbin_interface		qpl_isal_deflate_hash_lvl1
+mbin_dispatch_init5	qpl_isal_deflate_hash_lvl1, qpl_isal_deflate_hash_base, qpl_isal_deflate_hash_crc_01, qpl_isal_deflate_hash_crc_01, qpl_isal_deflate_hash_crc_01
+
+mbin_interface		qpl_isal_deflate_hash_lvl2
+mbin_dispatch_init5	qpl_isal_deflate_hash_lvl2, qpl_isal_deflate_hash_base, qpl_isal_deflate_hash_crc_01, qpl_isal_deflate_hash_crc_01, qpl_isal_deflate_hash_crc_01
+
+mbin_interface		qpl_isal_deflate_hash_lvl3
+mbin_dispatch_init5	qpl_isal_deflate_hash_lvl3, qpl_isal_deflate_hash_base, qpl_isal_deflate_hash_base, qpl_isal_deflate_hash_base, qpl_isal_deflate_hash_mad_base

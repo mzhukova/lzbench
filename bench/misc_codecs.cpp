@@ -376,3 +376,74 @@ int64_t lzbench_nvcomp_decompress(char *inbuf, size_t insize, char *outbuf, size
 #endif    // BENCH_HAS_NVCOMP
 
 #endif    // BENCH_HAS_CUDA
+
+#ifndef BENCH_REMOVE_QPL
+
+#include "qpl/qpl.h"
+#include "misc/libqpl/qpl-wrappers/qpl_helper.hpp"
+
+char* lzbench_qpl_init(size_t, size_t, size_t blocks_number) {
+  QPLCompressionContext* ctx = allocate_qpl_context(blocks_number);
+  if (!ctx) return NULL;
+
+  if (!initialize_qpl_context(ctx)) {
+    free_qpl_context(ctx, false);
+    free(ctx);
+    return NULL;
+  }
+
+  return (char*)ctx;
+}
+
+void lzbench_qpl_deinit(char* workmem) {
+    QPLCompressionContext* ctx = (QPLCompressionContext*)workmem;
+    if (!ctx) return;
+
+    free_qpl_context(ctx, true);
+
+    free(workmem);
+}
+
+int64_t lzbench_qpl_compress(char* in, size_t insize, char* out, size_t outsize, codec_options_t *codec_options) {
+    QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
+    if (!ctx) return 0;
+
+    qpl_compression_levels qpl_level = (codec_options->level == 3) ? qpl_high_level : qpl_default_level;
+
+    compress(ctx, in, insize, out, &outsize, qpl_level, true);
+
+    return outsize;
+}
+
+int64_t lzbench_qpl_fixed_compress(char* in, size_t insize, char* out, size_t outsize, codec_options_t *codec_options) {
+    QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
+    if (!ctx) return 0;
+
+    qpl_compression_levels qpl_level = (codec_options->level == 3) ? qpl_high_level : qpl_default_level;
+
+    compress(ctx, in, insize, out, &outsize, qpl_level, false);
+
+    return outsize;
+}
+
+int64_t lzbench_qpl_decompress(char* inbuf, size_t insize, char* outbuf, size_t outsize, codec_options_t *codec_options) {
+
+    QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
+    if (!ctx) return 0;
+
+    decompress(ctx, inbuf, insize, outbuf, &outsize, true);
+
+    return outsize;
+}
+
+int64_t lzbench_qpl_fixed_decompress(char* inbuf, size_t insize, char* outbuf, size_t outsize, codec_options_t *codec_options) {
+
+    QPLCompressionContext* ctx = (QPLCompressionContext*)codec_options->work_mem;
+    if (!ctx) return 0;
+
+    decompress(ctx, inbuf, insize, outbuf, &outsize, false);
+
+    return outsize;
+}
+
+#endif // DBENCH_REMOVE_QPL
