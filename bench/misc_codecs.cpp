@@ -382,9 +382,14 @@ int64_t lzbench_nvcomp_decompress(char *inbuf, size_t insize, char *outbuf, size
 #include "qpl/qpl.h"
 #include "misc/libqpl/qpl-wrappers/qpl_helper.hpp"
 
-char* lzbench_qpl_init(size_t, size_t, size_t blocks_number) {
-  QPLCompressionContext* ctx = allocate_qpl_context(blocks_number);
+#define QPL_DEFAULT_JOB_SRC_BLOCKSIZE (128 * 1024)
+#define QPL_DEFAULT_JOB_DST_BLOCKSIZE (QPL_DEFAULT_JOB_SRC_BLOCKSIZE + (QPL_DEFAULT_JOB_SRC_BLOCKSIZE/8) + 2048)
+
+char* lzbench_qpl_init(size_t, size_t, size_t jobs_number) {
+  QPLCompressionContext* ctx = allocate_qpl_context(jobs_number);
   if (!ctx) return NULL;
+
+  ctx->block_size = QPL_DEFAULT_JOB_SRC_BLOCKSIZE;
 
   if (!initialize_qpl_context(ctx)) {
     free_qpl_context(ctx, false);

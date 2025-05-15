@@ -14,7 +14,8 @@
 struct QPLCompressionContext {
     qpl_job*              job = NULL;
     std::vector<qpl_job*> job_c;
-    int                   blocks_number;
+    int                   jobs_number;
+    size_t                block_size;
 };
 
 /**
